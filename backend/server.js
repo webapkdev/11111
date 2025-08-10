@@ -1,3 +1,4 @@
+// server.js
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
@@ -28,18 +29,31 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Secure Admin Login
-app.post('/admin/login', (req, res) => {
+/* --------------------------
+   DUMMY LOGIN SYSTEM
+--------------------------- */
+const USERS = [
+  { username: 'admin', password: 'admin123', role: 'admin' },
+  { username: 'dev', password: 'dev123', role: 'developer' }
+];
+
+// Login route
+app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  if (
-    username === process.env.ADMIN_USERNAME &&
-    password === process.env.ADMIN_PASSWORD
-  ) {
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  const user = USERS.find(
+    (u) => u.username === username && u.password === password
+  );
+
+  if (!user) {
+    return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
+
+  res.json({ success: true, role: user.role });
 });
+
+/* --------------------------
+   FILE UPLOAD ROUTES
+--------------------------- */
 
 // Upload to icons bucket
 app.post('/upload/icon', upload.single('file'), async (req, res) => {
@@ -85,7 +99,9 @@ app.post('/upload/apk', upload.single('file'), async (req, res) => {
   }
 });
 
-// Fallback to index.html for any unknown routes
+/* --------------------------
+   FRONTEND FALLBACK
+--------------------------- */
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });
