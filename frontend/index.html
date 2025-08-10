@@ -4,10 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>APK Store - Home</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/style.css">
 
 <!-- PWA manifest -->
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0d6efd">
 </head>
 <body>
@@ -19,7 +19,7 @@
   </div>
 
   <div class="controls">
-    <a class="btn" href="profile.html" id="profileLink">Profile</a>
+    <a class="btn" href="/profile.html" id="profileLink">Profile</a>
     <div class="dropdown-wrap">
       <button id="settingsBtn" class="btn">⚙ Settings</button>
       <div id="settingsMenu" class="dropdown">
@@ -36,7 +36,7 @@
   <div id="appGrid" class="grid"></div>
   <div id="noApps" class="msg" style="display:none">No apps available yet.</div>
 
-  <!-- Upload form for testing -->
+  <!-- Upload form for quick test (can be removed later) -->
   <section style="margin-top:20px;">
     <h3>Upload Icon</h3>
     <input type="file" id="iconFile" />
@@ -48,51 +48,12 @@
   </section>
 </main>
 
-<script>
-// Settings dropdown toggle
-document.getElementById('settingsBtn').addEventListener('click', () => {
-  document.getElementById('settingsMenu').classList.toggle('show');
-});
-
-// Upload function
-async function uploadFile(type) {
-  const fileInput = document.getElementById(type === 'icon' ? 'iconFile' : 'apkFile');
-  if (!fileInput.files.length) {
-    alert('Please select a file first.');
-    return;
-  }
-
-  const file = fileInput.files[0];
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const endpoint = type === 'icon' ? '/upload/icon' : '/upload/apk';
-
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      body: formData
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      alert(`${type.toUpperCase()} uploaded successfully: ${data.url}`);
-    } else {
-      alert(`Error: ${data.error}`);
-    }
-  } catch (err) {
-    console.error(err);
-    alert('Upload failed.');
-  }
-}
-</script>
-
-<script src="script.js"></script>
+<script src="/script.js"></script>
 
 <!-- Register Service Worker -->
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js')
+  navigator.serviceWorker.register('/sw.js')
     .then(() => console.log('Service Worker registered successfully.'))
     .catch(err => console.error('Service Worker registration failed:', err));
 }
