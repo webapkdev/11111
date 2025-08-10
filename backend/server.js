@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
@@ -28,6 +27,19 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Multer for file uploads (memory storage)
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+
+// Secure Admin Login
+app.post('/admin/login', (req, res) => {
+  const { username, password } = req.body;
+  if (
+    username === process.env.ADMIN_USERNAME &&
+    password === process.env.ADMIN_PASSWORD
+  ) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+});
 
 // Upload to icons bucket
 app.post('/upload/icon', upload.single('file'), async (req, res) => {
