@@ -1,111 +1,93 @@
 // server.js
-require('dotenv').config();
-const express = require('express');
-const multer = require('multer');
-const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
-const path = require('path');
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+require("dotenv").config();
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
+// Supabase init
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
 
-// Serve frontend static files
-app.use(express.static(path.join(__dirname, '../frontend')));
+// Dummy users (hardcoded for now)
+const dummyUsers = {
+  admin: { username: "admin", password: "admin123", role: "admin" },
+  dev: { username: "dev", password: "dev123", role: "developer" }
+};
 
-// Supabase config from .env
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const SUPABASE_BUCKET_1 = process.env.SUPABASE_BUCKET_1;
-const SUPABASE_BUCKET_2 = process.env.SUPABASE_BUCKET_2;
-
-// Create Supabase client
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// Multer for file uploads (memory storage)
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-/* --------------------------
-   DUMMY LOGIN SYSTEM
---------------------------- */
-const USERS = [
-  { username: 'admin', password: 'admin123', role: 'admin' },
-  { username: 'dev', password: 'dev123', role: 'developer' }
-];
-
-// Login route
-app.post('/login', (req, res) => {
+// Login API
+app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
-  const user = USERS.find(
-    (u) => u.username === username && u.password === password
-  );
-
-  if (!user) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  for (let key in dummyUsers) {
+    if (
+      dummyUsers[key].username === username &&
+      dummyUsers[key].password === password
+    ) {
+      return res.json({ success: true, role: dummyUsers[key].role });
+    }
   }
-
-  res.json({ success: true, role: user.role });
+  res.json({ success: false, message: "Invalid credentials" });
 });
 
-/* --------------------------
-   FILE UPLOAD ROUTES
---------------------------- */
+// Fetch all apps
+app.get("/api/apps", async (req, res) => {
+  const { data, error } = await supabase.from("apps").select("*");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
 
-// Upload to icons bucket
-app.post('/upload/icon', upload.single('file'), async (req, res) => {
-  try {
-    const file = req.file;
-    const fileName = Date.now() + path.extname(file.originalname);
-
-    const { error } = await supabase.storage
-      .from(SUPABASE_BUCKET_1)
-      .upload(fileName, file.buffer, { contentType: file.mimetype });
-
-    if (error) throw error;
-
-    const { data: publicURLData } = supabase.storage
-      .from(SUPABASE_BUCKET_1)
-      .getPublicUrl(fileName);
-
-    res.json({ success: true, url: publicURLData.publicUrl });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+// Add new app (developer)
+app.post("/api/apps", async (req, res) => {
+  const { name, description, apkUrl, role } = req.body;
+  if (role !== "developer" && role !== "admin") {
+    return res.status(403).json({ error: "Unauthorized" });
   }
+  const { data, error } = await supabase
+    .from("apps")
+    .insert([{ name, description, apkUrl }]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true, data });
 });
 
-// Upload to apks bucket
-app.post('/upload/apk', upload.single('file'), async (req, res) => {
-  try {
-    const file = req.file;
-    const fileName = Date.now() + path.extname(file.originalname);
-
-    const { error } = await supabase.storage
-      .from(SUPABASE_BUCKET_2)
-      .upload(fileName, file.buffer, { contentType: file.mimetype });
-
-    if (error) throw error;
-
-    const { data: publicURLData } = supabase.storage
-      .from(SUPABASE_BUCKET_2)
-      .getPublicUrl(fileName);
-
-    res.json({ success: true, url: publicURLData.publicUrl });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+// Approve or reject app (admin)
+app.post("/api/apps/:id/approve", async (req, res) => {
+  const { role, approve } = req.body;
+  if (role !== "admin") {
+    return res.status(403).json({ error: "Unauthorized" });
   }
+  const { data, error } = await supabase
+    .from("apps")
+    .update({ approved: approve })
+    .eq("id", req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true, data });
 });
 
-/* --------------------------
-   FRONTEND FALLBACK
---------------------------- */
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
+// Delete app (admin)
+app.delete("/api/apps/:id", async (req, res) => {
+  const { role } = req.body;
+  if (role !== "admin") {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+  const { error } = await supabase.from("apps").delete().eq("id", req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Serve frontend
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
