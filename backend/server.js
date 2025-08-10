@@ -13,6 +13,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, '../frontend')));
+
 // Supabase config from .env
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -25,11 +28,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Multer for file uploads (memory storage)
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-
-// Test route
-app.get('/', (req, res) => {
-  res.send('Backend server running with Supabase storage!');
-});
 
 // Upload to icons bucket
 app.post('/upload/icon', upload.single('file'), async (req, res) => {
@@ -73,6 +71,11 @@ app.post('/upload/apk', upload.single('file'), async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// Fallback to index.html for any unknown routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });
 
 app.listen(port, () => {
