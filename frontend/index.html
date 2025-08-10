@@ -35,7 +35,57 @@
 <main class="container">
   <div id="appGrid" class="grid"></div>
   <div id="noApps" class="msg" style="display:none">No apps available yet.</div>
+
+  <!-- Upload form for testing -->
+  <section style="margin-top:20px;">
+    <h3>Upload Icon</h3>
+    <input type="file" id="iconFile" />
+    <button onclick="uploadFile('icon')">Upload Icon</button>
+
+    <h3>Upload APK</h3>
+    <input type="file" id="apkFile" />
+    <button onclick="uploadFile('apk')">Upload APK</button>
+  </section>
 </main>
+
+<script>
+// Settings dropdown toggle
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsMenu').classList.toggle('show');
+});
+
+// Upload function
+async function uploadFile(type) {
+  const fileInput = document.getElementById(type === 'icon' ? 'iconFile' : 'apkFile');
+  if (!fileInput.files.length) {
+    alert('Please select a file first.');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const endpoint = type === 'icon' ? '/upload/icon' : '/upload/apk';
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert(`${type.toUpperCase()} uploaded successfully: ${data.url}`);
+    } else {
+      alert(`Error: ${data.error}`);
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Upload failed.');
+  }
+}
+</script>
 
 <script src="script.js"></script>
 
