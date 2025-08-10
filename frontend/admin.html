@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Admin Console</title><link rel="stylesheet" href="/style.css"></head><body>
+<header class="topbar"><div class="brand">Admin Console</div><div style="flex:1"></div><a class="btn" href="/index.html">Back to Store</a></header>
+<main class="container">
+  <section><h2>Pending Apps</h2><div id="pendingList"></div></section>
+  <section style="margin-top:18px"><h2>All Approved Apps</h2><div id="approvedList"></div></section>
+</main>
+<script src="/script.js"></script>
+<script>
+  (function(){
+    const raw = localStorage.getItem("apk_user");
+    if (!raw) { window.location.href = "/login.html"; return; }
+    const user = JSON.parse(raw);
+    if (user.role !== "admin") {
+      alert("Admin access required");
+      window.location.href = "/index.html";
+      return;
+    }
+  })();
+
+  async function loadPending() {
+    try {
+      const res = await fetch("/all-apps");
+      const list = await res.json();
+      const pending = list.filter(a => !a.approved);
+      const el = document.getElementById("pendingList");
+      el.innerHTML = "";
+      if (!pending || pending.length === 0) { el.innerHTML = "<p class='msg'>No pending apps</p>"; return; }
+      pending.forEach(a => {
+        const d = document.createElement("div");
+        d.className = "card";
+        d.innerHTML = `
+          <img src="${a.icon}" alt="${a.appName}">
+          <h3>${escapeHtml(a.appName)}</h3>
+          <p>${escapeHtml(a.description)}</p>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn" onclick="approveApp(${a.id})">Approve</button>
+            <button class="btn" onclick="rejectApp(${a.id})">Reject</button>
+            <button class="btn" onclick="editApp(${a.id})">Edit</button>
+            <button class="btn" onclick="deleteApp(${a.id})">Delete</button>
+          </div>
+        `;
+        el.appendChild(d);
+      });
+    } catch (err) { console.error(err); }
+  }
+
+  async function loadApproved() {
+    try {
+      const res = await fetch("/apps");
+      const list = await res.json();
+      const el = document.getElementById("approvedList");
+      el.innerHTML = "";
+      if (!list || list.length === 0) { el.innerHTML = "<p class='msg'>No approved apps</p>"; return; }
+      list.forEach(a => {
+        const d = document.createElement("div");
+        d.className = "card";
+        d.innerHTML = `
+          <img src="${a.icon}" alt="${a.appName}">
+          <h3>${escapeHtml(a.appName)}</h3>
+          <p>${escapeHtml(a.description)}</p>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn" onclick="editApp(${a.id})">Edit</button>
+            <button class="btn" onclick="deleteApp(${a.id})">Delete</button>
+          </div>
+        `;
+        el.appendChild(d);
+      });
+    } catch (err) { console.error(err); }
+  }
+
+  async function approveApp(id){ await fetch("/approve-app", { method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) }); loadPending(); loadApproved(); }
+  async function rejectApp(id){ await fetch("/reject-app", { method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) }); loadPending(); loadApproved(); }
+  async function editApp(id){ const newName = prompt("New app name"); const newDesc = prompt("New description"); await fetch("/edit-app", { method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id, appName: newName, description: newDesc }) }); loadPending(); loadApproved(); }
+  async function deleteApp(id){ if (!confirm("Delete this app?")) return; await fetch("/apps/"+id, { method: "DELETE" }); loadPending(); loadApproved(); }
+
+  window.addEventListener("DOMContentLoaded", () => { loadPending(); loadApproved(); });
+</script>
+</body></html>
