@@ -12,108 +12,91 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Show/hide settings menu
   if (settingsBtn && settingsMenu) {
-    settingsBtn.addEventListener("click", () => {
-      settingsMenu.style.display =
-        settingsMenu.style.display === "block" ? "none" : "block";
+    settingsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      settingsMenu.style.display = settingsMenu.style.display === "block" ? "none" : "block";
     });
-  }
 
-  // Logout
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-      localStorage.removeItem("apk_user");
-      alert("Logged out.");
-      window.location.href = "login.html";
+    // close menu when clicking outside
+    document.addEventListener("click", () => {
+      if (settingsMenu) settingsMenu.style.display = "none";
     });
+
+    // prevent click inside menu from closing when interacting
+    settingsMenu.addEventListener("click", (e) => e.stopPropagation());
   }
 
-  // Role-based button visibility and navigation
-  const userRaw = localStorage.getItem("apk_user");
-  let currentUser = null;
-  if (userRaw) {
-    currentUser = JSON.parse(userRaw);
-  }
+  // quick navigation buttons
+  if (devConsoleBtn) devConsoleBtn.addEventListener("click", () => location.href = "/developer.html");
+  if (adminConsoleBtn) adminConsoleBtn.addEventListener("click", () => location.href = "/admin.html");
+  if (logoutBtn) logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem("apk_user");
+    location.href = "/index.html";
+  });
 
-  // Developer Console
-  if (devConsoleBtn) {
-    if (!currentUser || (currentUser.role !== "developer" && currentUser.role !== "admin")) {
-      devConsoleBtn.style.display = "none";
-    } else {
-      devConsoleBtn.addEventListener("click", () => {
-        window.location.href = "developer.html";
-      });
-    }
-  }
-
-  // Admin Console
-  if (adminConsoleBtn) {
-    if (!currentUser || currentUser.role !== "admin") {
-      adminConsoleBtn.style.display = "none";
-    } else {
-      adminConsoleBtn.addEventListener("click", () => {
-        window.location.href = "admin.html";
-      });
-    }
-  }
-
-  // Search functionality
+  // search
   if (searchInput) {
     searchInput.addEventListener("input", () => {
       const q = searchInput.value.trim().toLowerCase();
-      filterApps(q);
+      if (typeof filterApps === "function") filterApps(q);
     });
   }
 
-  // Initial app load
-  loadApps();
+  // initial load of public apps on index
+  if (document.getElementById("appGrid")) {
+    loadApps();
+  }
 });
 
-// ------------------- APP DISPLAY -------------------
-
-let APPS = [];
-
+// load all approved apps
 async function loadApps() {
   try {
     const res = await fetch("/apps");
-    APPS = await res.json();
-    renderApps(APPS);
+    const apps = await res.json();
+    if (!Array.isArray(apps) || apps.length === 0) {
+      document.getElementById("noApps").style.display = "block";
+    } else {
+      document.getElementById("noApps").style.display = "none";
+    }
+    renderApps(apps);
   } catch (err) {
-    console.error("Error loading apps:", err);
+    console.error("Failed to load apps", err);
+    document.getElementById("noApps").style.display = "block";
   }
 }
 
-function renderApps(list) {
+function renderApps(apps) {
   const grid = document.getElementById("appGrid");
-  const noApps = document.getElementById("noApps");
   if (!grid) return;
   grid.innerHTML = "";
-
-  if (!list || list.length === 0) {
-    if (noApps) noApps.style.display = "block";
-    return;
-  } else if (noApps) {
-    noApps.style.display = "none";
-  }
-
-  list.forEach((a) => {
-    const el = document.createElement("div");
-    el.className = "card";
-    el.innerHTML = `
-      <img src="${a.icon}" alt="${escapeHtml(a.appName)}">
+  apps.forEach(a => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <img src="${a.icon}" alt="${a.appName}">
       <h3>${escapeHtml(a.appName)}</h3>
       <p>${escapeHtml(a.description)}</p>
-      <a class="btn" href="${a.apk}" download>Download</a>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <a class="btn" href="${a.apk}" download>Download</a>
+      </div>
     `;
-    grid.appendChild(el);
+    grid.appendChild(card);
   });
 }
 
+// filter apps used by search
 function filterApps(q) {
-  if (!q) return renderApps(APPS);
-  const filtered = APPS.filter((a) =>
-    (a.appName + " " + a.description).toLowerCase().includes(q)
-  );
-  renderApps(filtered);
+  const list = document.querySelectorAll("#appGrid .card");
+  if (!list) return;
+  if (!q) {
+    // show all
+    list.forEach(n => n.style.display = "");
+    return;
+  }
+  list.forEach(card => {
+    const text = (card.innerText || "").toLowerCase();
+    card.style.display = text.includes(q) ? "" : "none";
+  });
 }
 
 function escapeHtml(s) {
@@ -124,4 +107,29 @@ function escapeHtml(s) {
     '"': "&quot;",
     "'": "&#39;",
   }[c]));
+}
+
+// convenience: upload file to backend endpoints /upload/icon and /upload/apk
+async function uploadFile(type) {
+  const fileInput = document.getElementById(type === 'icon' ? 'iconFile' : 'apkFile');
+  if (!fileInput || !fileInput.files.length) {
+    alert('Please select a file first.');
+    return;
+  }
+  const file = fileInput.files[0];
+  const fd = new FormData();
+  fd.append('file', file);
+  const endpoint = type === 'icon' ? '/upload/icon' : '/upload/apk';
+  try {
+    const resp = await fetch(endpoint, { method: 'POST', body: fd });
+    const j = await resp.json();
+    if (j.success) {
+      alert(`${type.toUpperCase()} uploaded: ${j.url}`);
+    } else {
+      alert('Upload error: ' + (j.error || JSON.stringify(j)));
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Upload failed');
+  }
 }
