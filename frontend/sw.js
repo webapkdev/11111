@@ -1,43 +1,52 @@
-const CACHE_NAME = 'apk-store-cache-v1';
+const CACHE_NAME = 'apk-store-v1';
 const ASSETS_TO_CACHE = [
-  '/frontend/index.html',
-  '/frontend/style.css',
-  '/frontend/script.js',
-  '/frontend/profile.html',
-  '/frontend/admin.html',
-  '/frontend/developer.html',
-  '/frontend/login.html',
-  '/frontend/settings.html',
-  '/frontend/icons/icon-192.png',
-  '/frontend/icons/icon-512.png'
+  '/',
+  '/index.html',
+  '/style.css',
+  '/script.js',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/profile.html',
+  '/settings.html',
+  '/developer.html',
+  '/admin.html',
+  '/login.html'
 ];
 
-// Install Service Worker
+// Install event - cache app shell
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log('Caching app assets');
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('[Service Worker] Caching app shell');
+        return cache.addAll(ASSETS_TO_CACHE);
+      })
   );
 });
 
-// Activate Service Worker
+// Activate event - clean old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+        keys.map(key => {
+          if (key !== CACHE_NAME) {
+            console.log('[Service Worker] Removing old cache', key);
+            return caches.delete(key);
+          }
+        })
       );
     })
   );
 });
 
-// Fetch requests
+// Fetch event - serve from cache or network
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request);
-    })
+    caches.match(event.request)
+      .then(response => {
+        return response || fetch(event.request);
+      })
   );
 });
