@@ -1,103 +1,80 @@
-const express = require("express");
-const multer = require("multer");
-const cors = require("cors");
-const path = require("path");
-const fs = require("fs");
-const { createClient } = require("@supabase/supabase-js");
-
-require("dotenv").config();
+// server.js
+require('dotenv').config();
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
+const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const port = process.env.PORT || 3000;
 
-// Supabase client
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-
-// Keep your existing middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Memory storage for multer (instead of disk storage)
+// Supabase config from .env
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_BUCKET_1 = process.env.SUPABASE_BUCKET_1;
+const SUPABASE_BUCKET_2 = process.env.SUPABASE_BUCKET_2;
+
+// Create Supabase client
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Multer for file uploads (memory storage)
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
-// Example database mockup (replace with your DB logic)
-let apps = [];
+// Test route
+app.get('/', (req, res) => {
+  res.send('Backend server running with Supabase storage!');
+});
 
-// Upload route
-app.post("/upload-app", upload.fields([
-  { name: "icon", maxCount: 1 },
-  { name: "apk", maxCount: 1 }
-]), async (req, res) => {
+// Upload to icons bucket
+app.post('/upload/icon', upload.single('file'), async (req, res) => {
   try {
-    const { appName, description, developer } = req.body;
-    let iconUrl = "";
-    let apkUrl = "";
+    const file = req.file;
+    const fileName = Date.now() + path.extname(file.originalname);
 
-    // Upload icon to Supabase
-    if (req.files["icon"]) {
-      const iconFile = req.files["icon"][0];
-      const iconName = Date.now() + path.extname(iconFile.originalname);
-      const { error: iconError } = await supabase
-        .storage
-        .from(process.env.SUPABASE_BUCKET_1)
-        .upload(iconName, iconFile.buffer, {
-          contentType: iconFile.mimetype,
-          upsert: false
-        });
-      if (iconError) throw iconError;
+    const { error } = await supabase.storage
+      .from(SUPABASE_BUCKET_1)
+      .upload(fileName, file.buffer, { contentType: file.mimetype });
 
-      const { data } = supabase
-        .storage
-        .from(process.env.SUPABASE_BUCKET_1)
-        .getPublicUrl(iconName);
-      iconUrl = data.publicUrl;
-    }
+    if (error) throw error;
 
-    // Upload APK to Supabase
-    if (req.files["apk"]) {
-      const apkFile = req.files["apk"][0];
-      const apkName = Date.now() + path.extname(apkFile.originalname);
-      const { error: apkError } = await supabase
-        .storage
-        .from(process.env.SUPABASE_BUCKET_2.trim())
-        .upload(apkName, apkFile.buffer, {
-          contentType: apkFile.mimetype,
-          upsert: false
-        });
-      if (apkError) throw apkError;
+    const { data: publicURLData } = supabase.storage
+      .from(SUPABASE_BUCKET_1)
+      .getPublicUrl(fileName);
 
-      const { data } = supabase
-        .storage
-        .from(process.env.SUPABASE_BUCKET_2.trim())
-        .getPublicUrl(apkName);
-      apkUrl = data.publicUrl;
-    }
-
-    // Save to your DB array (mock)
-    const newApp = {
-      id: Date.now(),
-      name: appName,
-      description,
-      developer,
-      icon: iconUrl,
-      apk: apkUrl
-    };
-    apps.push(newApp);
-
-    res.json({ success: true, app: newApp });
+    res.json({ success: true, url: publicURLData.publicUrl });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Upload failed", error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Example route to get apps
-app.get("/apps", (req, res) => {
-  res.json(apps);
+// Upload to apks bucket
+app.post('/upload/apk', upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const fileName = Date.now() + path.extname(file.originalname);
+
+    const { error } = await supabase.storage
+      .from(SUPABASE_BUCKET_2)
+      .upload(fileName, file.buffer, { contentType: file.mimetype });
+
+    if (error) throw error;
+
+    const { data: publicURLData } = supabase.storage
+      .from(SUPABASE_BUCKET_2)
+      .getPublicUrl(fileName);
+
+    res.json({ success: true, url: publicURLData.publicUrl });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
