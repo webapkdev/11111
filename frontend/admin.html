@@ -4,115 +4,95 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Admin Console</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="topbar">
   <div class="brand">Admin Console</div>
   <div style="flex:1"></div>
-  <a class="btn" href="index.html">Back to Store</a>
+  <a class="btn" href="/index.html">Back to Store</a>
 </header>
 
 <main class="container">
-
-  <!-- Pending Apps -->
   <section>
     <h2>Pending Apps</h2>
-    <table class="table" id="pendingTable">
-      <thead><tr><th>Icon</th><th>Name</th><th>Uploader</th><th>Actions</th></tr></thead>
-      <tbody></tbody>
-    </table>
+    <div id="pendingList"></div>
   </section>
 
-  <!-- Approved Apps -->
-  <section style="margin-top:2rem;">
-    <h2>Approved Apps</h2>
-    <table class="table" id="approvedTable">
-      <thead><tr><th>Icon</th><th>Name</th><th>Uploader</th><th>Actions</th></tr></thead>
-      <tbody></tbody>
-    </table>
+  <section style="margin-top:18px">
+    <h2>All Approved Apps</h2>
+    <div id="approvedList"></div>
   </section>
-
 </main>
 
+<script src="/script.js"></script>
+
 <script>
-  // protect page: admin only
   (function(){
     const raw = localStorage.getItem("apk_user");
-    if (!raw) { window.location.href = "login.html"; return; }
+    if (!raw) { window.location.href = "/login.html"; return; }
     const user = JSON.parse(raw);
-    if (user.role !== "admin") { alert("Admin access required"); window.location.href = "index.html"; return; }
+    if (user.role !== "admin") {
+      alert("Admin access required");
+      window.location.href = "/index.html";
+      return;
+    }
   })();
 
-  // Load pending apps
   async function loadPending() {
-    const res = await fetch("/pending-apps");
-    const list = await res.json();
-    const tbody = document.querySelector("#pendingTable tbody");
-    tbody.innerHTML = "";
-    list.forEach(a => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><img src="${a.icon}" width="60"></td>
-        <td>${escapeHtml(a.appName)}<br><small>${escapeHtml(a.description)}</small></td>
-        <td>${escapeHtml(a.uploader || "unknown")}</td>
-        <td>
-          <button class="btn" onclick="approve(${a.id})">Approve</button>
-          <button class="btn" onclick="reject(${a.id})">Reject</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
+    try {
+      const res = await fetch("/pending-apps");
+      const list = await res.json();
+      const el = document.getElementById("pendingList");
+      el.innerHTML = "";
+      if (!list || list.length === 0) { el.innerHTML = "<p class='msg'>No pending apps</p>"; return; }
+      list.forEach(a => {
+        const d = document.createElement("div");
+        d.className = "card";
+        d.innerHTML = `
+          <img src="${a.icon}" alt="${a.appName}">
+          <h3>${escapeHtml(a.appName)}</h3>
+          <p>${escapeHtml(a.description)}</p>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn" data-id="${a.id}" onclick="approveApp(${a.id})">Approve</button>
+            <button class="btn" data-id="${a.id}" onclick="rejectApp(${a.id})">Reject</button>
+          </div>
+        `;
+        el.appendChild(d);
+      });
+    } catch (err) { console.error(err); }
   }
 
-  // Load approved apps
   async function loadApproved() {
-    const res = await fetch("/apps");
-    const list = await res.json();
-    const tbody = document.querySelector("#approvedTable tbody");
-    tbody.innerHTML = "";
-    list.forEach(a => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><img src="${a.icon}" width="60"></td>
-        <td>${escapeHtml(a.appName)}<br><small>${escapeHtml(a.description)}</small></td>
-        <td>${escapeHtml(a.uploader || "unknown")}</td>
-        <td>
-          <a class="btn" href="${a.apk}" target="_blank">Download</a>
-          <button class="btn" onclick="deleteApp(${a.id})">Delete</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
+    try {
+      const res = await fetch("/apps");
+      const list = await res.json();
+      const el = document.getElementById("approvedList");
+      el.innerHTML = "";
+      if (!list || list.length === 0) { el.innerHTML = "<p class='msg'>No approved apps</p>"; return; }
+      list.forEach(a => {
+        const d = document.createElement("div");
+        d.className = "card";
+        d.innerHTML = `
+          <img src="${a.icon}" alt="${a.appName}">
+          <h3>${escapeHtml(a.appName)}</h3>
+          <p>${escapeHtml(a.description)}</p>
+        `;
+        el.appendChild(d);
+      });
+    } catch (err) { console.error(err); }
   }
 
-  async function approve(id){
-    if (!confirm("Approve this app?")) return;
-    const res = await fetch("/approve-app", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id }) });
-    const j = await res.json();
-    if (j.success) { loadPending(); loadApproved(); alert("Approved"); } else alert("Failed");
+  async function approveApp(id) {
+    await fetch("/approve-app", { method: "POST", headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id }) });
+    loadPending(); loadApproved();
+  }
+  async function rejectApp(id) {
+    await fetch("/reject-app", { method: "POST", headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id }) });
+    loadPending(); loadApproved();
   }
 
-  async function reject(id){
-    if (!confirm("Reject/remove this app?")) return;
-    const res = await fetch("/reject-app", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id }) });
-    const j = await res.json();
-    if (j.success) { loadPending(); alert("Removed"); } else alert("Failed");
-  }
-
-  async function deleteApp(id){
-    if (!confirm("Delete this app permanently?")) return;
-    const res = await fetch(`/apps/${id}`, { method: "DELETE" });
-    const j = await res.json();
-    if (j.success) { loadApproved(); alert("Deleted"); } else alert("Failed");
-  }
-
-  window.addEventListener("DOMContentLoaded", () => {
-    loadPending();
-    loadApproved();
-  });
-
-  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  window.addEventListener("DOMContentLoaded", () => { loadPending(); loadApproved(); });
 </script>
 </body>
 </html>
