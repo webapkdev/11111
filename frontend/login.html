@@ -3,38 +3,52 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Login - APK Store</title>
-<link rel="stylesheet" href="style.css">
+<title>Login</title>
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main style="max-width:420px;margin:90px auto;padding:120px;background:rgba(255,255,255,0.03);border-radius:8px">
-  &nbsp  <h1 align="center">Login</h1>
-  <div style="margin-bottom:12px">
-    <input id="username" placeholder="Username" />
-  </div>
-  <div style="margin-bottom:12px">
-    <input id="password" type="password" placeholder="Password" />
-  </div>
- <p align="center"> <button id="loginBtn" class="btn"  >Login</button></p>
-  <p id="loginMsg" class="msg"></p>
-  
+<header class="topbar">
+  <div class="brand">Login</div>
+  <div style="flex:1"></div>
+  <a class="btn" href="/index.html">Back</a>
+</header>
+
+<main class="container">
+  <section class="upload-card" style="max-width:420px">
+    <h3>Sign in</h3>
+    <form id="loginForm">
+      <label>Username</label><br>
+      <input name="username" required /><br><br>
+      <label>Password</label><br>
+      <input type="password" name="password" required /><br><br>
+      <button class="btn" type="submit">Login</button>
+      <p id="loginMsg" class="msg"></p>
+    </form>
+  </section>
 </main>
 
+<script src="/script.js"></script>
+
 <script>
-document.getElementById("loginBtn").addEventListener("click", async () => {
-  const u = document.getElementById("username").value.trim();
-  const p = document.getElementById("password").value.trim();
-  if (!u || !p) { document.getElementById("loginMsg").textContent = "Fill both"; return; }
-  const res = await fetch("/login", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ username: u, password: p }) });
-  const j = await res.json();
-  if (j.success) {
-    // store locally for simple session (backend in this simple project does not have sessions)
-    localStorage.setItem("apk_user", JSON.stringify({ username: j.username, role: j.role }));
-    window.location.href = "index.html";
-  } else {
-    document.getElementById("loginMsg").textContent = j.message || "Login failed";
-  }
-});
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = { username: fd.get("username"), password: fd.get("password") };
+    try {
+      const res = await fetch("/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await res.json();
+      const msg = document.getElementById("loginMsg");
+      if (j.success) {
+        localStorage.setItem("apk_user", JSON.stringify({ username: j.username, role: j.role }));
+        window.location.href = "/index.html";
+      } else {
+        msg.style.color = "#ffdede";
+        msg.textContent = "Login failed: " + (j.message || "Invalid");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  });
 </script>
 </body>
 </html>
